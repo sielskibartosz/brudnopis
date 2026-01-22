@@ -1,0 +1,93 @@
+Fazy SDLC:
+Zbieranie wymagań (Requirements Gathering & Analysis):
+
+Zespół zbiera wymagania od interesariuszy (klient, użytkownicy).
+
+Analizuje, co ma robić system.
+
+Tworzy dokumentację wymagań funkcjonalnych i niefunkcjonalnych.
+
+Projektowanie (Design):
+
+Tworzony jest plan architektury systemu (np. bazy danych, komponenty frontendu i backendu).
+
+Na tym etapie QA może zacząć planować testowanie.
+
+Implementacja (Development):
+
+Programiści piszą kod według projektu.
+
+Może być prowadzony w modelu Agile (iteracyjnie) lub Waterfall (po kolei).
+
+Testowanie (Testing):
+
+QA testuje aplikację, aby upewnić się, że spełnia wymagania i nie zawiera błędów.
+
+W tym etapie następuje identyfikacja i zgłaszanie defektów (bugów).
+
+Wdrożenie (Deployment):
+
+Oprogramowanie jest udostępniane użytkownikom.
+
+Może być to środowisko testowe, staging lub produkcyjne.
+
+Utrzymanie (Maintenance):
+
+Naprawianie błędów, wprowadzanie zmian, aktualizacji.
+
+Często trwa najdłużej w całym cyklu życia systemu.
+Rodzaje testów wykonywanych przez QA:
+Unit tests – pisane przez developerów.
+
+Integration tests – sprawdzają współdziałanie komponentów.
+
+System tests – testowanie całej aplikacji.
+
+Acceptance tests (UAT) – testy użytkownika końcowego.
+
+Regression tests – sprawdzają, czy nowe zmiany nie popsuły niczego starego.
+
+Performance, load, security tests – niefunkcjonalne testy.
+
+3. Defect Lifecycle (Cykl życia defektu)
+To cykl życia błędu od momentu jego wykrycia aż po zamknięcie. Każdy defekt przechodzi przez różne statusy.
+
+Typowy cykl życia defektu:
+New (Nowy):
+
+QA zgłasza nowy defekt. Opisuje problem, dodaje kroki reprodukcji, załącza zrzuty ekranu/logi.
+
+Assigned (Przydzielony):
+
+Defekt przypisany do konkretnego programisty.
+
+Open / In Progress (W trakcie pracy):
+
+Developer analizuje i naprawia problem.
+
+Fixed (Naprawiony):
+
+Developer oznacza defekt jako naprawiony.
+
+Retest (Retest):
+
+QA testuje ponownie, czy problem został rozwiązany.
+
+Closed (Zamknięty):
+
+QA potwierdza, że defekt już nie występuje.
+
+Reopened (Ponownie otwarty):
+
+Jeśli QA nadal widzi błąd, otwiera defekt ponownie.
+
+Rejected / Not a Bug / Duplicate:
+
+Developer odrzuca defekt, jeśli:
+
+nie jest to błąd,
+
+jest to powtórzenie już zgłoszonego błędu,
+
+zachowanie jest zgodne z wymaganiami.
+

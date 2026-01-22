@@ -1,0 +1,5 @@
+CREATE TABLE IF NOT EXISTS savings (
+    id SERIAL PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    costs NUMERIC(12, 2) NOT NULL
+);
