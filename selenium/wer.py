@@ -15,8 +15,8 @@ def test_google_search():
         # Znajdź pole wyszukiwania
         search_box = driver.find_element(By.NAME, "q")
 
-        # Wpisz "python" i naciśnij Enter
-        search_box.send_keys("python" + Keys.RETURN)
+        # Wpisz "python_ex" i naciśnij Enter
+        search_box.send_keys("python_ex" + Keys.RETURN)
 
         # Poczekaj aż pojawią się wyniki (elementy z id="search")
         wait = WebDriverWait(driver, 10)

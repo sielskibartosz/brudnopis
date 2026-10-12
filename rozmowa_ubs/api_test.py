@@ -1,6 +1,6 @@
 import unittest
 
-import pytest
+from python_ex import pytest
 import requests
 from unittest.mock import patch, Mock
 

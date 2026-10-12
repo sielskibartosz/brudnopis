@@ -1,4 +1,5 @@
-import pytest
+from python import pytest
+
 
 @pytest.fixture
 def my_fixture():

@@ -48,7 +48,7 @@ def test_fetch_status_bad_response_extended(mock_get):
 
     mock_get.return_value = mock_response
 
-    import pytest
+    from python import pytest
     with pytest.raises(ValueError) as excinfo:
         fetch_status()
     assert "Bad response status" in str(excinfo.value)

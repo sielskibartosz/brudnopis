@@ -1,7 +1,7 @@
 # GET https://api.sampleapis.com/coffee/hot
 import sqlite3
 from typing import List, Dict
-import pytest
+from python_ex import pytest
 import requests
 
 @pytest.fixture

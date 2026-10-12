@@ -7,13 +7,4 @@
         "muzyka",
         "sport"
     ]
-}{
-    "imie": "Jan",
-    "wiek": 30,
-    "miasto": "Warszawa",
-    "zainteresowania": [
-        "programowanie",
-        "muzyka",
-        "sport"
-    ]
 }
