@@ -1,0 +1,249 @@
+# Pytest — przygotowanie do rozmowy rekrutacyjnej (mid/senior)
+
+## 1. Podstawy
+- Odkrywanie testów: pliki `test_*.py` / `*_test.py`, funkcje `test_*`, klasy `Test*` (bez `__init__`).
+- Asercje: zwykłe `assert`, pytest przepisuje je (assertion rewriting) by dać czytelny diff bez potrzeby `assertEqual` itp.
+- Uruchamianie: `pytest -v`, `pytest -k "wyrazenie"`, `pytest -m marker`, `pytest -x` (stop na pierwszym failu), `pytest --lf` (last failed), `pytest --ff` (failed first).
+- `pytest.ini` / `pyproject.toml [tool.pytest.ini_options]` / `setup.cfg` — konfiguracja (testpaths, markers, addopts).
+
+## 2. Fixtures
+- Dekorator `@pytest.fixture`, wstrzykiwanie przez nazwę parametru (dependency injection).
+- Scope: `function` (domyślny), `class`, `module`, `package`, `session`.
+- `yield` zamiast `return` → kod po `yield` to teardown (odpowiednik setup/teardown).
+- `conftest.py` — współdzielenie fixtures między plikami testowymi bez importu; działa hierarchicznie (katalogi).
+- `autouse=True` — fixture uruchamiana automatycznie bez jawnego wskazania.
+- Fixture factory pattern — fixture zwracająca funkcję, by sparametryzować tworzenie obiektu wewnątrz testu.
+- `request` fixture — dostęp do metadanych testu (`request.param`, `request.node`, finalizery przez `request.addfinalizer`).
+- Nadpisywanie fixture w niższym zakresie (np. inna fixture o tej samej nazwie w podkatalogu).
+
+## 3. Parametryzacja
+- `@pytest.mark.parametrize("a,b,expected", [(1,2,3), (2,3,5)])`.
+- Stackowanie wielu `parametrize` → iloczyn kartezjański przypadków.
+- `ids=` dla czytelnych nazw przypadków testowych.
+- Parametryzacja fixture: `@pytest.fixture(params=[...])` + `request.param`.
+- `pytest.param(value, marks=pytest.mark.xfail)` — oznaczanie pojedynczych przypadków.
+
+## 4. Markery
+- Wbudowane: `skip`, `skipif`, `xfail`, `parametrize`.
+- Własne markery — rejestracja w `pytest.ini` (`markers = slow: ...`), inaczej warning (`--strict-markers` wymusza błąd).
+- `xfail(strict=True)` — test musi faileć, jeśli przejdzie → błąd (XPASS jako failure).
+
+## 5. Obsługa wyjątków i warningów
+- `pytest.raises(ValueError, match="komunikat")` jako context manager.
+- `pytest.warns(UserWarning)` — analogicznie dla ostrzeżeń.
+- `excinfo.value`, `excinfo.type`, `excinfo.traceback` do dalszej inspekcji.
+
+## 6. Mockowanie
+- `monkeypatch` fixture: `setattr`, `delattr`, `setenv`, `delenv`, `chdir`, `syspath_prepend` — automatyczny rollback po teście.
+- `pytest-mock` (`mocker` fixture) jako wrapper na `unittest.mock`, integruje się z teardownem pytest.
+- Różnica monkeypatch vs unittest.mock.patch — monkeypatch do prostych podmian atrybutów/env, mock do weryfikacji wywołań (call_count, assert_called_with).
+
+## 7. Plugin ecosystem (często pytane na mid/senior)
+- `pytest-cov` — pokrycie kodu (`--cov=pakiet --cov-report=term-missing`).
+- `pytest-xdist` — równoległe uruchamianie (`-n auto`), trzeba uważać na izolację testów (brak współdzielonego stanu, bazy danych).
+- `pytest-django` / `pytest-asyncio` (dla kodu async: `@pytest.mark.asyncio`).
+- `pytest-benchmark`, `pytest-randomly` (losowa kolejność testów — wyłapuje ukryte zależności między testami).
+- `pytest-timeout`, `pytest-rerunfailures` (retry flaky testów).
+
+## 8. Hooks i wtyczki własne
+- `conftest.py` jako miejsce na hooki: `pytest_collection_modifyitems`, `pytest_configure`, `pytest_runtest_setup`.
+- Pisanie własnego pluginu: `pytest11` entry point w `setup.cfg`/`pyproject.toml`.
+- `pytest_addoption` — dodawanie własnych flag CLI (`parser.addoption`).
+
+## 9. Organizacja dużych projektów testowych
+- Struktura: `tests/unit`, `tests/integration`, `tests/e2e` + osobne `conftest.py` na każdym poziomie.
+- Separacja fixtures wg odpowiedzialności (DB, API client, dane testowe/fabryki — np. `factory_boy`).
+- Testy izolowane od zewnętrznych zależności: fake/stub vs prawdziwe wywołania (VCR.py / responses dla HTTP).
+- Zarządzanie danymi testowymi: transakcje + rollback per test (fixture z `yield` + rollback), tmp_path / tmp_path_factory do plików tymczasowych.
+
+## 10. Typowe pytania rekrutacyjne (mid/senior) — z odpowiedziami
+
+**Różnica między `setup/teardown` (unittest) a fixtures pytest?**
+Fixtures są deklaratywne i komponowalne — test "prosi" o dokładnie to, czego potrzebuje (parametr = nazwa fixture), zamiast dziedziczyć jeden sztywny `setUp`/`tearDown` na całą klasę. Mają scope (function/class/module/session), mogą zależeć od innych fixtures, dają się parametryzować i nadpisywać lokalnie w `conftest.py`. To realny dependency injection, więc łatwiej dzielić kod setupu między niepowiązanymi klasami/modułami bez dziedziczenia.
+
+**Jak przetestować kod zależny od czasu / losowości?**
+Czas: `freezegun`/`time-machine` do zamrożenia `datetime.now()`; albo wstrzyknąć zegar jako zależność (clock injection) i w teście podać fake. Losowość: ustawić jawny `random.seed()` w teście albo wstrzyknąć generator liczb losowych jako argument/fixture, żeby test był deterministyczny. Do wyłapywania ukrytych zależności od kolejności/losowości uruchamiać całą suitę z `pytest-randomly`.
+
+**Jak wygląda test flaky i jak go naprawić?**
+Objawy: przechodzi/failuje bez zmian w kodzie. Najczęstsze przyczyny: współdzielony stan między testami (globalne zmienne, singleton, baza bez rollbacku), zależność od kolejności wykonania, race condition w kodzie async/wielowątkowym, zależność od zewnętrznego zasobu (sieć, zegar systemowy, losowość). Naprawa: izolacja (fixture z yield + cleanup/rollback), mock zewnętrznych zależności, jawny seed, unikanie `sleep()` na rzecz polling/retry z timeoutem. `pytest-rerunfailures` to plaster, nie rozwiązanie — używać tylko tymczasowo i oznaczać dlaczego.
+
+**Jak zorganizować fixtures, by uniknąć duplikacji między modułami?**
+Hierarchia `conftest.py` — fixture ogólna (np. klient HTTP, połączenie DB) w `conftest.py` najwyższego poziomu, bardziej specyficzna bliżej testów które jej używają. Można nadpisać fixture o tej samej nazwie w podkatalogu (override). Dla współdzielonych fixtures między projektami/repo — własny plugin pytest rejestrowany przez `pytest11` entry point.
+
+**Co to jest "test pollution" i jak go unikać?**
+Test zostawia efekt uboczny (plik, rekord w DB, zmienną globalną, zmodyfikowany `sys.path`), który wpływa na kolejne testy. Unikanie: fixtures z `yield` + jawny teardown/rollback, `tmp_path` zamiast pisania do realnego FS, transakcje DB rollbackowane per test, unikanie stanu modułowego/singletonów w kodzie testowanym lub resetowanie go w fixture.
+
+**Mockować czy nie mockować?**
+Mock granic systemu (sieć, zewnętrzne API, zegar, losowość, I/O) — tak, to konieczne dla szybkich i deterministycznych testów. Nadużycie: mockowanie wewnętrznej implementacji własnego modułu tak mocno, że test sprawdza "czy metoda X wywołała metodę Y" zamiast realnego zachowania — taki test przechodzi mimo błędu biznesowego i failuje przy nieszkodliwym refaktorze. Zasada: testuj zachowanie (input/output), nie szczegóły implementacji.
+
+**Czy wysokie coverage == dobre testy?**
+Nie. Coverage (zwłaszcza line coverage) mówi tylko, że linia się wykonała, nie że wynik został sprawdzony asercją. Branch coverage jest lepsze niż line coverage, ale nadal nie gwarantuje jakości — można mieć 100% coverage i zero sensownych asercji. Coverage to sygnał ostrzegawczy (co na pewno NIE jest testowane), nie cel sam w sobie.
+
+**Różnica unit / integration / e2e w pytest?**
+Unit — pojedyncza funkcja/klasa, wszystkie zależności zmockowane, bardzo szybkie, dużo przypadków (parametrize). Integration — kilka komponentów razem (np. ORM + prawdziwa testowa baza danych), sprawdza kontrakty między nimi. E2E — cały system przez realny interfejs (API/UI), najwolniejsze i najmniej ich w suicie (piramida testów). W pytest rozdzielane katalogami (`tests/unit`, `tests/integration`, `tests/e2e`) i/lub markerami (`@pytest.mark.integration`) + osobne `conftest.py`/fixtures na poziom.
+
+**`pytest.ini` vs `pyproject.toml`?**
+W nowoczesnym projekcie konfiguracja w `pyproject.toml` pod `[tool.pytest.ini_options]` — jeden plik konfiguracyjny na cały projekt (obok black/ruff/mypy), mniej plików w repo. `pytest.ini` ma sens, gdy projekt nie używa `pyproject.toml` albo gdy chce się jawnie zasygnalizować "tu jest konfiguracja testów" bez przeszukiwania większego pliku.
+
+**Jak testować kod asynchroniczny?**
+`pytest-asyncio` + `@pytest.mark.asyncio` na teście `async def`, albo tryb `asyncio_mode = "auto"` w konfiguracji żeby nie oznaczać każdego testu ręcznie. Fixture `event_loop` do kontroli pętli zdarzeń per test/sesja. Zewnętrzne wywołania async (HTTP, DB) mockować przez `AsyncMock` albo biblioteki typu `aioresponses`.
+
+**Kiedy ma sens snapshot testing?**
+Gdy wynik jest złożoną strukturą (duży JSON, wyrenderowany HTML/markup, AST) i ręczne pisanie asercji pole-po-polu byłoby nieczytelne i kruche. `syrupy`/`pytest-snapshot` zapisują referencyjny output i porównują przy kolejnych uruchomieniach. Ryzyko: snapshoty bywają "ślepo" zatwierdzane (`--snapshot-update`) bez realnej weryfikacji poprawności — dobre do regresji strukturalnych, złe jako jedyna forma testowania logiki biznesowej.
+
+## 11. Architektura projektu testowego — struktura, utils, helpers
+
+### Układ katalogów (typowy, skalowalny projekt)
+```
+project/
+├── src/ (albo nazwa pakietu)
+├── tests/
+│   ├── conftest.py              # fixtures wspólne dla WSZYSTKICH testów (np. config, markery)
+│   ├── unit/
+│   │   ├── conftest.py          # fixtures tylko dla unitów (mocki, fake obiekty)
+│   │   └── test_pricing.py
+│   ├── integration/
+│   │   ├── conftest.py          # fixtures DB/klient HTTP, docker-compose test env
+│   │   └── test_order_repository.py
+│   ├── e2e/
+│   │   ├── conftest.py          # fixtures: uruchomiona aplikacja, przeglądarka itp.
+│   │   └── test_checkout_flow.py
+│   ├── fixtures/                # dane testowe (pliki JSON/YAML/CSV jako wzorce)
+│   │   └── sample_order.json
+│   ├── factories/                # fabryki danych (factory_boy / własne buildery)
+│   │   └── order_factory.py
+│   ├── helpers/                  # funkcje pomocnicze NIE będące fixtures
+│   │   ├── assertions.py         # własne asercje domenowe
+│   │   └── builders.py           # buildery obiektów domenowych do testów
+│   └── utils/                    # generyczne narzędzia (nie-domenowe)
+│       └── time_utils.py         # np. freeze_time wrapper, retry/poll helper
+```
+
+### Gdzie co trzymać — zasada rozróżnienia
+- **Fixtures** (`conftest.py`) — wszystko, co pytest ma wstrzyknąć przez nazwę parametru i co ma lifecycle (setup/teardown, scope). Np. klient API, sesja DB, zalogowany użytkownik.
+- **Helpers** (`tests/helpers/`) — zwykłe funkcje Python wywoływane jawnie wewnątrz testu, bez wstrzykiwania. Np. `assert_valid_invoice(response)`, `build_expected_payload(...)`. Nie mają stanu/lifecycle — gdyby go potrzebowały, powinny być fixture.
+- **Utils** (`tests/utils/`) — generyczne narzędzia niezwiązane z domeną biznesową, mogłyby trafić nawet do innego projektu (np. `wait_until(condition, timeout=5)`, `freeze_time_at(...)`). Różnica helpers vs utils bywa umowna w mniejszych projektach — część zespołów trzyma to w jednym katalogu `tests/support/`.
+- **Factories** (`tests/factories/`) — tworzenie obiektów domenowych z sensownymi wartościami domyślnymi + możliwością nadpisania pól (`OrderFactory(status="paid")`). Najczęściej `factory_boy` albo proste buildery z `dataclasses`/`attrs`. Zapobiega kopiowaniu wielkich literałów danych testowych między testami.
+- **Fixtures danych** (`tests/fixtures/`, pliki statyczne) — gdy dane testowe to realny plik (odpowiedź z zewnętrznego API, dokument), a nie coś generowanego proceduralnie. Ładowane np. fixture `load_fixture("sample_order.json")`.
+
+### Jak dzielić same testy
+- Katalogi wg **poziomu testu** (unit/integration/e2e) — bo mają różny czas wykonania, różne wymagania środowiskowe (unit w CI na każdym commicie, e2e tylko przed release/nightly) i różne fixtures.
+- Wewnątrz poziomu: katalogi/pliki **wg modułu/domeny** kodu produkcyjnego (1:1 albo bliskie mapowanie `src/billing/` → `tests/unit/billing/`), żeby łatwo znaleźć test dla danego kodu.
+- Markery (`@pytest.mark.slow`, `@pytest.mark.integration`, `@pytest.mark.smoke`) jako dodatkowy wymiar przecinający katalogi — np. uruchomienie tylko `smoke` na każdym PR, reszta nightly. Rejestrować w `pyproject.toml`/`pytest.ini` i wymuszać `--strict-markers`.
+- Osobny katalog/marker dla testów wolnych/kosztownych (hity sieciowe, duże fixtures) żeby dev mógł szybko odpalić "core" suite lokalnie.
+- Testy kontraktowe (consumer-driven contracts, np. Pact) osobno od integration — inny cel (zgodność API między usługami, nie poprawność logiki).
+
+### Reguły, które dobrze wypadają na rozmowie
+- Test nie powinien wiedzieć o szczegółach infrastruktury (connection string, ścieżki plików) — to ukryte w fixture/helper, test operuje na poziomie domeny.
+- Brak logiki warunkowej (`if`/pętle z rozgałęzieniami) w samym teście — to sygnał, że brakuje parametryzacji albo helper/factory robi za mało.
+- Współdzielony `conftest.py` na górze powinien być "chudy" — ogólne rzeczy (markery, config), nie fixtures specyficzne dla jednego modułu (inaczej ładują się niepotrzebnie wszędzie i spowalniają/zaśmiecają collection).
+- Importy między katalogami testowymi (np. unit importujący helper z integration) to zapach architektoniczny — wspólny kod powinien wędrować do `helpers`/`utils`/`factories`, a nie między warstwami testów.
+- `__init__.py` w katalogach testowych — potrzebne, gdy chcemy unikalne nazwy modułów przy identycznych nazwach plików w różnych katalogach (import mode `importlib` w nowszym pytest częściowo to rozwiązuje).
+
+## 12. Pytest w CI (Jenkins)
+
+### Podstawowy przepływ
+- Jenkinsfile (pipeline deklaratywny) odpala `pytest` jako jeden ze stage'y; wynik (exit code) decyduje o statusie builda — pytest zwraca `0` (sukces), `1` (testy failed), `2` (przerwane przez usera), `3` (błąd wewnętrzny), `4` (błąd użycia CLI), `5` (brak testów do zebrania).
+- Przykładowy stage:
+```groovy
+pipeline {
+    agent any
+    stages {
+        stage('Install') {
+            steps { sh 'pip install -r requirements.txt' }
+        }
+        stage('Test') {
+            steps {
+                sh 'pytest --junitxml=reports/results.xml --cov=src --cov-report=xml -m "not e2e"'
+            }
+        }
+    }
+    post {
+        always {
+            junit 'reports/results.xml'
+            publishCoverage adapters: [coberturaAdapter('coverage.xml')]
+        }
+    }
+}
+```
+
+### Raportowanie wyników
+- `--junitxml=reports/results.xml` — format JUnit XML, który Jenkins (plugin `junit`) rozumie natywnie: pokazuje trendy, listę failów, wykresy pass/fail w historii builda.
+- `post { always { junit 'reports/*.xml' } }` — działa nawet gdy stage testowy zawiedzie (status builda i tak ustawi się na UNSTABLE/FAILURE, ale raport się opublikuje).
+- Coverage: `pytest-cov` → `--cov-report=xml` (Cobertura format) + plugin Jenkins `Coverage` albo starszy `Cobertura Plugin` do wizualizacji i progów (np. build niestabilny gdy coverage < X%).
+- HTML report (`pytest-html` albo `--cov-report=html`) publikowany przez `publishHTML` do podglądu w UI Jenkinsa.
+
+### Macierzowanie / równoległość
+- Pipeline równoległy per poziom testów (`stage` z `parallel { }`) — osobno unit (szybkie, na każdym commicie), integration (wolniejsze, wymaga np. kontenera z bazą danych), e2e (najwolniejsze, częściej tylko na gałęzi głównej/nightly).
+- `pytest-xdist` (`-n auto` / `-n 4`) do zrównoleglenia wewnątrz jednego stage'a — trzeba pilnować izolacji (np. każdy worker własna baza/schema, inny port).
+- Matrix build (różne wersje Pythona / systemy) przez `agent { docker { image "python:3.11" } }` w kilku równoległych stage'ach albo przez Jenkins Matrix Project / `matrix { }` block w declarative pipeline.
+
+### Środowisko i izolacja
+- Testy integracyjne zwykle potrzebują zależności (DB, message broker) — albo `docker-compose` odpalany jako krok przed `pytest` (`docker compose up -d` → testy → `docker compose down` w `post`), albo Jenkins agent z usługami jako sidecar kontenery (Kubernetes plugin / `docker.image(...).withRun()`).
+- Zmienne środowiskowe/sekrety (API keys do testów kontraktowych) przez Jenkins Credentials Binding (`withCredentials`), nigdy hardkodowane w Jenkinsfile.
+- `tox` albo `nox` często jako warstwa pośrednia — ujednolica "jak odpalić testy" lokalnie i w CI (ten sam `tox.ini` używany przez dev i przez Jenkins), Jenkinsfile wtedy tylko woła `tox -e py311`.
+
+### Flaky testy i stabilność pipeline'u
+- `pytest-rerunfailures` (`--reruns 2 --reruns-delay 1`) jako doraźne obejście w CI, ale oznaczane/trackowane (nie chować problemu na stałe).
+- Jenkins `retry(2) { sh 'pytest ...' }` na poziomie całego stage'a jako "big hammer" — gorsze niż rerun na poziomie pytest, bo maskuje też błędy infrastruktury.
+- Quarantine pattern: marker `@pytest.mark.flaky` + osobny stage, który failuje ale nie blokuje builda (`catchError` / `unstable` status), żeby nie hamować zespołu, a jednocześnie mieć widoczność że coś trzeba naprawić.
+
+### Typowe pytania rekrutacyjne o CI/Jenkins
+- Jak podzielić pipeline, żeby szybkie testy dawały feedback od razu, a wolne nie blokowały każdego commita? (unit na PR, integration/e2e na merge do main / nightly, stage'owanie + `when { branch 'main' }`).
+- Jak zapewnić powtarzalność środowiska testowego w CI? (zamrożone wersje zależności — lockfile, obraz Dockera z ustaloną wersją Pythona i systemowych bibliotek, nie "latest").
+- Co zrobić, gdy testy przechodzą lokalnie a failują w CI? (różnice środowiskowe — strefa czasowa, locale, brak izolacji między agentami, różne wersje zależności, zasoby/timeout na wolniejszym agencie).
+- Jak Jenkins dowiaduje się o wyniku testów, skoro `pytest` to tylko proces shellowy? (exit code + parsowanie JUnit XML przez plugin `junit`, który dodatkowo zasila historię/trendy, niezależnie od samego exit code).
+
+## 13. Manifest, tox, venv vs poetry
+
+### MANIFEST.in — kiedy używamy
+- Dotyczy **budowania paczki do dystrybucji** (`sdist`/wheel), nie samego uruchamiania testów. `setup.py`/`pyproject.toml` + `setuptools` domyślnie pakują tylko pliki `.py` wskazane przez `packages`/`py_modules` — wszystko inne (dane niebędące kodem) trzeba dodać jawnie.
+- `MANIFEST.in` mówi narzędziu budującemu (`sdist`), jakie **dodatkowe pliki nie-Python** dołączyć do archiwum źródłowego: pliki danych (`*.json`, `*.yaml`), `README`, `LICENSE`, pliki konfiguracyjne, czasem `tests/` jeśli ma być w sdist.
+- Przykład:
+```
+include README.md LICENSE
+recursive-include src/mypkg/data *.json
+recursive-exclude tests *
+```
+- Czy potrzebny przy samym pisaniu/testowaniu pytest? **Nie bezpośrednio** — chyba że projekt pakuje dane testowe (fixtures) jako część paczki instalowanej przez pip, albo trzeba zapewnić że `pip install .` z sdist faktycznie zawiera wszystkie potrzebne pliki (częsty bug: testy przechodzą z repo, ale failują po `pip install` z paczki, bo brakuje pliku danych — klasyczne pytanie rekrutacyjne o "dlaczego działa lokalnie, nie działa z paczki").
+- Nowoczesne narzędzia (`setuptools_scm`, `hatch`, `poetry`) częściowo automatyzują to przez `pyproject.toml` (`include`/`exclude` w sekcji buildera), zmniejszając potrzebę ręcznego `MANIFEST.in`, ale warto wiedzieć że to wciąż istnieje i bywa źródłem bugów w starszych projektach `setuptools`.
+
+### tox — kiedy używamy
+- Automatyzacja uruchamiania testów w **wielu izolowanych środowiskach** (różne wersje Pythona: 3.9/3.10/3.11/3.12, różne wersje zależności) bez ręcznego tworzenia venvów.
+- Każde "env" w `tox.ini` to osobny, czysty virtualenv tworzony od zera — gwarantuje, że testy nie polegają przypadkiem na czymś zainstalowanym ręcznie w środowisku developera ("works on my machine" killer).
+- Typowy `tox.ini`:
+```ini
+[tox]
+envlist = py310, py311, py312, lint
+
+[testenv]
+deps = -r requirements-test.txt
+commands = pytest {posargs}
+
+[testenv:lint]
+deps = ruff
+commands = ruff check src tests
+```
+- Używane głównie przy: bibliotekach open-source wspierających wiele wersji Pythona, projektach gdzie CI ma odpalać identyczne komendy co lokalnie (Jenkinsfile woła po prostu `tox`, cała logika "jak testować" żyje w `tox.ini`, nie w pipeline).
+- Różnica względem samego `pytest`: `pytest` uruchamia testy w **aktualnym** środowisku; `tox` najpierw buduje/izoluje środowisko (albo kilka), instaluje paczkę + zależności, dopiero potem woła `pytest` wewnątrz niego. To warstwa nad pytest, nie zamiennik.
+- Nowszy odpowiednik/konkurent: `nox` (konfiguracja w Pythonie zamiast INI, bardziej elastyczna).
+
+### venv vs Poetry — różnica
+| | **venv** | **Poetry** |
+|---|---|---|
+| Co to jest | Wbudowany w Pythona mechanizm tworzenia izolowanego środowiska (katalog z własnym interpreterem/site-packages) | Narzędzie do zarządzania zależnościami + budowania paczki + publikowania, które *przy okazji* też zarządza środowiskiem wirtualnym |
+| Zależności | Trzeba ręcznie `pip install` + ręcznie pisany `requirements.txt` (bez automatycznego lockfile ani rozwiązywania konfliktów wersji) | `pyproject.toml` deklaruje zależności, Poetry rozwiązuje wersje i generuje `poetry.lock` (deterministyczne, odtwarzalne instalacje — dokładnie te same wersje u każdego developera i w CI) |
+| Build/publish | Brak — trzeba osobno `setuptools`/`build`/`twine` | Wbudowane `poetry build` / `poetry publish` |
+| Rozróżnienie dev vs prod deps | Ręcznie, zwykle dwa pliki (`requirements.txt` + `requirements-dev.txt`) | Natywne grupy zależności (`[tool.poetry.group.dev.dependencies]`) |
+| Reprodukowalność | Słaba bez dodatkowej dyscypliny (łatwo o "u mnie działa" przez niezamrożone wersje) | Silna dzięki lockfile z hashami pakietów |
+| Kiedy wybrać | Proste skrypty/projekty, środowiska gdzie nie chcemy dodatkowej zależności narzędziowej, albo gdy firma ma już ustalony inny sposób zarządzania zależnościami (pip-tools, conda) | Biblioteki/aplikacje, gdzie liczy się powtarzalność buildów, publikacja paczki na PyPI, wygodne zarządzanie grupami zależności |
+
+- Praktyczny punkt do rozmowy: **venv to tylko izolacja interpretera**, nie rozwiązuje "dependency hell" ani nie generuje lockfile — to zupełnie inny poziom abstrakcji niż Poetry. Poetry *wewnętrznie* i tak tworzy/używa virtualenv (albo venv, albo własny w `{cache-dir}/virtualenvs`), więc nie są to wzajemnie wykluczające się narzędzia — Poetry to "venv + pip + lockfile + packaging" w jednym.
+- `tox` i Poetry da się łączyć (plugin `tox-poetry` albo `tox` wołający `poetry install` w `commands_pre`), żeby mieć i macierz wersji Pythona, i deterministyczne zależności z lockfile.
+
+## 14. Dobre praktyki / code review perspektywa
+- AAA (Arrange-Act-Assert) w strukturze testu.
+- Jeden logiczny cel na test (choć wiele `assert` fizycznie ok, jeśli testują jedno zachowanie).
+- Nazewnictwo testów opisujące zachowanie, nie implementację (`test_discount_applied_when_quantity_over_10` zamiast `test_case_1`).
+- Unikanie zależności czasowych/kolejności testów (uruchamiać z `pytest-randomly` by to wyłapać).
+- Fixtures jako "given", parametrize jako macierz przypadków brzegowych.

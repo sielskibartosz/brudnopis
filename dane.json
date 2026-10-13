@@ -1,6 +1,6 @@
 {
-    "imie": "Jan",
-    "wiek": 30,
+    "imie": true,
+    "wiek": null,
     "miasto": "Warszawa",
     "zainteresowania": [
         "programowanie",
